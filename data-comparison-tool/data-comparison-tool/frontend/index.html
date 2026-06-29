@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Data Comparison Tool v2.0</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div class="app">
+
+<!-- SIDEBAR -->
+<nav class="sidebar">
+  <div class="sb-logo">
+    <h1>🔄 Data Comparison<br>Tool v2.0</h1>
+    <p>Internal vs Vendor · Enhanced</p>
+  </div>
+  <div class="sb-section">Navigation</div>
+  <div class="sb-item active" data-view="upload"><i class="ti ti-upload"></i> Load Files <span class="sb-badge">Step 1</span></div>
+  <div class="sb-item" data-view="schema"><i class="ti ti-layout-columns"></i> Schema Map <span class="sb-badge">Step 2</span></div>
+  <div class="sb-item" data-view="configure"><i class="ti ti-settings"></i> Configure <span class="sb-badge">Step 3</span></div>
+  <div class="sb-item" data-view="results"><i class="ti ti-chart-bar"></i> Results <span class="sb-badge">Step 4</span></div>
+  <div class="sb-section">Analysis</div>
+  <div class="sb-item" data-view="sku"><i class="ti ti-tag"></i> SKU Analysis</div>
+  <div class="sb-item" data-view="diff"><i class="ti ti-git-diff"></i> Field Differences</div>
+  <div class="sb-item" data-view="category"><i class="ti ti-category"></i> Category Map</div>
+  <div class="sb-item" data-view="brand"><i class="ti ti-brand-stripe"></i> Brand Analysis</div>
+  <div class="sb-section">Performance</div>
+  <div class="sb-item" data-view="performance"><i class="ti ti-rocket"></i> Performance</div>
+  <div class="sb-item" data-view="export"><i class="ti ti-download"></i> Export Reports</div>
+  <div class="sb-status">
+    <div class="sb-status-row"><div class="dot off" id="sb-azure-dot"></div><span id="sb-azure-status">Azure: Not Connected</span></div>
+    <div class="sb-status-row"><div class="dot off" id="sb-int-dot"></div><span id="sb-int-status">Internal: No file</span></div>
+    <div class="sb-status-row"><div class="dot off" id="sb-vnd-dot"></div><span id="sb-vnd-status">Vendor: No file</span></div>
+    <div class="sb-status-row"><div class="dot off" id="sb-cmp-dot"></div><span id="sb-cmp-status">Comparison: Pending</span></div>
+    <div style="margin-top:10px">
+      <button class="btn btn-primary w-full btn-sm" onclick="App.runComparison()"><i class="ti ti-player-play"></i> Run Comparison</button>
+    </div>
+  </div>
+</nav>
+
+<!-- MAIN -->
+<div class="main">
+  <div class="topbar">
+    <div class="breadcrumb">
+      <i class="ti ti-home" style="font-size:14px"></i>
+      <i class="ti ti-chevron-right" style="font-size:12px;color:#9ca3af"></i>
+      <span id="breadcrumb-label">Load Files</span>
+    </div>
+    <div style="flex:1"></div>
+    <div class="topbar-actions">
+      <button class="btn btn-ghost btn-sm" onclick="App.resetSession()"><i class="ti ti-refresh"></i> Reset</button>
+      <button class="btn btn-sm" onclick="App.quickExport()"><i class="ti ti-file-download"></i> Export</button>
+      <button class="btn btn-primary btn-sm" onclick="App.runComparison()"><i class="ti ti-player-play"></i> Run Comparison</button>
+    </div>
+  </div>
+
+  <div class="content">
+    <!-- STEP BAR -->
+    <div class="step-bar" id="step-bar">
+      <div class="step active" data-view="upload"><span class="step-num">1</span>Load Files</div>
+      <div class="step" data-view="schema"><span class="step-num">2</span>Schema Map</div>
+      <div class="step" data-view="configure"><span class="step-num">3</span>Configure</div>
+      <div class="step" data-view="results"><span class="step-num">4</span>Results</div>
+    </div>
+
+    <!-- ═══ VIEW: UPLOAD ═══ -->
+    <div id="view-upload" class="view active">
+
+      <!-- Choose Source -->
+      <div id="up-screen-choose">
+        <div style="text-align:center;padding:10px 0 24px">
+          <div style="font-size:18px;font-weight:700;color:#111827;margin-bottom:6px">How do you want to load your files?</div>
+          <div style="font-size:13px;color:#6b7280">Choose a source for both Internal and Vendor data</div>
+        </div>
+        <div class="grid-2" style="max-width:680px;margin:0 auto 24px;gap:20px">
+          <div class="card source-card" id="src-local" onclick="App.chooseSource('local')">
+            <div class="card-body" style="text-align:center;padding:28px 20px;cursor:pointer">
+              <i class="ti ti-upload" style="font-size:40px;color:var(--blue);margin-bottom:12px;display:block"></i>
+              <div style="font-size:15px;font-weight:700;color:#111827;margin-bottom:6px">Upload Local Files</div>
+              <div style="font-size:12px;color:#6b7280">Excel, CSV, TSV, ZIP from your computer. Drag &amp; drop supported.</div>
+              <div style="margin-top:14px;display:flex;gap:6px;justify-content:center;flex-wrap:wrap">
+                <span class="chip">.xlsx</span><span class="chip">.xls</span><span class="chip">.csv</span><span class="chip">.tsv</span><span class="chip">.zip</span>
+              </div>
+            </div>
+          </div>
+          <div class="card source-card" id="src-azure" onclick="App.chooseSource('azure')">
+            <div class="card-body" style="text-align:center;padding:28px 20px;cursor:pointer">
+              <i class="ti ti-cloud" style="font-size:40px;color:var(--purple);margin-bottom:12px;display:block"></i>
+              <div style="font-size:15px;font-weight:700;color:#111827;margin-bottom:6px">Azure Blob Storage</div>
+              <div style="font-size:12px;color:#6b7280">Connect to Azure Storage and browse containers directly.</div>
+              <div style="margin-top:14px"><span class="chip chip-purple"><i class="ti ti-lock" style="font-size:10px"></i> Secure connection</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- LOCAL UPLOAD -->
+      <div id="up-screen-local" style="display:none">
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-header"><h3><i class="ti ti-building" style="color:var(--blue)"></i> Internal File <span id="int-badge" class="badge badge-gray" style="margin-left:6px">Not loaded</span></h3></div>
+            <div class="card-body">
+              <div class="file-drop" id="drop-internal" ondragover="event.preventDefault();this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="App.handleDrop(event,'internal')">
+                <i class="ti ti-file-upload"></i>
+                <p><strong>Drop internal file here</strong> or <strong style="color:var(--blue);cursor:pointer" onclick="document.getElementById('file-int').click()">click to browse</strong></p>
+                <p style="margin-top:6px;font-size:11px;color:#9ca3af">Excel, CSV, ZIP up to 500MB</p>
+              </div>
+              <input type="file" id="file-int" accept=".csv,.xlsx,.xls,.xlsm,.tsv,.txt,.zip" style="display:none" onchange="App.handleFileSelect(event,'internal')">
+              <div id="int-progress" style="display:none;margin-top:10px">
+                <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+                  <span id="int-progress-label">Uploading...</span><span id="int-progress-pct">0%</span>
+                </div>
+                <div class="progress-wrap"><div class="progress-bar" id="int-progress-bar" style="width:0%;background:var(--blue)"></div></div>
+              </div>
+              <div id="int-file-info" style="display:none;margin-top:10px"></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header"><h3><i class="ti ti-handshake" style="color:var(--purple)"></i> Vendor File <span id="vnd-badge" class="badge badge-gray" style="margin-left:6px">Not loaded</span></h3></div>
+            <div class="card-body">
+              <div class="file-drop" id="drop-vendor" ondragover="event.preventDefault();this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="App.handleDrop(event,'vendor')">
+                <i class="ti ti-file-upload"></i>
+                <p><strong>Drop vendor file here</strong> or <strong style="color:var(--purple);cursor:pointer" onclick="document.getElementById('file-vnd').click()">click to browse</strong></p>
+                <p style="margin-top:6px;font-size:11px;color:#9ca3af">Excel, CSV, ZIP up to 500MB</p>
+              </div>
+              <input type="file" id="file-vnd" accept=".csv,.xlsx,.xls,.xlsm,.tsv,.txt,.zip" style="display:none" onchange="App.handleFileSelect(event,'vendor')">
+              <div id="vnd-progress" style="display:none;margin-top:10px">
+                <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+                  <span id="vnd-progress-label">Uploading...</span><span id="vnd-progress-pct">0%</span>
+                </div>
+                <div class="progress-wrap"><div class="progress-bar" id="vnd-progress-bar" style="width:0%;background:var(--purple)"></div></div>
+              </div>
+              <div id="vnd-file-info" style="display:none;margin-top:10px"></div>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:16px">
+          <button class="btn" onclick="App.chooseSource(null)"><i class="ti ti-arrow-left"></i> Back</button>
+          <button class="btn btn-primary" id="btn-next-schema" onclick="App.goToSchema()" disabled>Continue to Schema Map <i class="ti ti-arrow-right"></i></button>
+        </div>
+      </div>
+
+      <!-- AZURE UPLOAD -->
+      <!-- ═══ AZURE STORAGE BROWSER ═══ -->
+      <div id="up-screen-azure" style="display:none">
+
+        <!-- ── Row 1: Connection card ── -->
+        <div class="card mb-16" id="az-conn-card">
+          <div class="card-header">
+            <h3><i class="ti ti-cloud" style="color:var(--purple)"></i> Azure Storage Connection</h3>
+            <span id="az-status-badge" class="badge badge-gray">Disconnected</span>
+          </div>
+          <div class="card-body" style="padding:14px 18px">
+            <!-- Connection info bar (shown after connect) -->
+            <div id="az-info-bar" style="display:none;margin-bottom:14px;padding:10px 14px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;align-items:center;gap:16px;flex-wrap:wrap">
+              <div style="display:flex;align-items:center;gap:8px">
+                <i class="ti ti-building-bank" style="color:#16a34a;font-size:18px"></i>
+                <div>
+                  <div style="font-size:11px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:.04em">Storage Account</div>
+                  <div id="az-info-account" style="font-size:13px;font-weight:700;color:#111827">—</div>
+                </div>
+              </div>
+              <div style="width:1px;height:32px;background:#d1fae5;flex-shrink:0"></div>
+              <div>
+                <div style="font-size:11px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:.04em">Container</div>
+                <div id="az-info-container" style="font-size:13px;font-weight:700;color:#111827">—</div>
+              </div>
+              <div style="width:1px;height:32px;background:#d1fae5;flex-shrink:0"></div>
+              <div>
+                <div style="font-size:11px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:.04em">Current Path</div>
+                <div id="az-info-path" style="font-size:13px;font-weight:700;color:#111827;font-family:monospace">root</div>
+              </div>
+              <div style="width:1px;height:32px;background:#d1fae5;flex-shrink:0"></div>
+              <div>
+                <div style="font-size:11px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:.04em">Status</div>
+                <div style="font-size:13px;font-weight:700;color:#16a34a"><i class="ti ti-circle-check"></i> Connected</div>
+              </div>
+              <div style="margin-left:auto;display:flex;gap:8px">
+                <button class="btn btn-sm" onclick="App.azureRefresh()" title="Refresh containers"><i class="ti ti-refresh"></i> Refresh</button>
+                <button class="btn btn-sm" onclick="App.azureDisconnect()" id="az-disconnect-btn" style="display:none"><i class="ti ti-plug-x"></i> Disconnect</button>
+              </div>
+            </div>
+
+            <!-- Credentials form (shown before connect) -->
+            <div id="az-creds-form">
+              <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:0;align-items:stretch">
+                <div class="form-group" style="margin-bottom:0">
+                  <label>Connection String</label>
+                  <input type="text" id="az-conn-str" placeholder="DefaultEndpointsProtocol=https;AccountName=..." style="font-size:12px">
+                </div>
+                <div style="display:flex;align-items:center;justify-content:center;padding:0 16px;color:#9ca3af;font-size:12px;margin-top:20px">— OR —</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                  <div class="form-group" style="margin-bottom:0">
+                    <label>Account Name</label>
+                    <input type="text" id="az-account-name" placeholder="mystorageaccount" style="font-size:12px">
+                  </div>
+                  <div class="form-group" style="margin-bottom:0">
+                    <label>Account Key</label>
+                    <input type="password" id="az-account-key" placeholder="Base64 key…" style="font-size:12px">
+                  </div>
+                </div>
+              </div>
+              <div style="display:flex;gap:8px;margin-top:12px;align-items:center">
+                <button class="btn btn-primary" id="az-connect-btn" onclick="App.azureConnect()"><i class="ti ti-plug"></i> Connect to Azure</button>
+                <div id="az-connect-error" style="display:none;flex:1"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Row 2: Dual-pane browser (shown after connect + container select) ── -->
+        <div id="az-browser-panel" style="display:none;margin-bottom:16px">
+
+          <!-- Container selector bar -->
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+            <label style="font-size:12px;font-weight:600;white-space:nowrap;color:#374151"><i class="ti ti-database" style="color:var(--purple)"></i> Container:</label>
+            <select id="az-container-select" style="font-size:12px;flex:1;max-width:280px" onchange="App.azureSelectContainer()">
+              <option value="">— select a container —</option>
+            </select>
+            <div id="az-sort-bar" style="display:none;margin-left:auto;align-items:center;gap:6px">
+              <label style="font-size:11px;color:#6b7280">Sort:</label>
+              <select id="az-sort-select" style="font-size:11px;padding:3px 6px;border:1px solid #d1d5db;border-radius:4px" onchange="App.azureSort()">
+                <option value="name">Name</option>
+                <option value="size">Size</option>
+                <option value="date">Modified</option>
+              </select>
+              <button class="btn btn-sm" onclick="App.azureSearch()" style="padding:3px 8px"><i class="ti ti-search"></i></button>
+            </div>
+          </div>
+
+          <!-- Breadcrumb navigation -->
+          <div id="az-breadcrumb" style="display:none;padding:6px 12px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:6px;margin-bottom:8px;font-size:12px;display:flex;align-items:center;gap:4px;flex-wrap:wrap">
+            <!-- populated by JS -->
+          </div>
+
+          <!-- Search bar -->
+          <div id="az-search-bar" style="display:none;margin-bottom:8px">
+            <div style="display:flex;gap:6px">
+              <input type="text" id="az-search-input" placeholder="Search files in current folder…" style="font-size:12px;flex:1" oninput="App.azureFilterFiles(this.value)">
+              <button class="btn btn-sm" onclick="App.azureClearSearch()" title="Clear"><i class="ti ti-x"></i></button>
+            </div>
+          </div>
+
+          <!-- Dual-pane browser -->
+          <div style="display:grid;grid-template-columns:260px 1fr;gap:0;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;background:#fff">
+
+            <!-- LEFT: Folder tree -->
+            <div style="border-right:1px solid #e5e7eb;background:#f8fafc">
+              <div style="padding:10px 12px;border-bottom:1px solid #e5e7eb;background:#f1f5f9;display:flex;align-items:center;justify-content:space-between">
+                <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#374151"><i class="ti ti-folder-tree"></i> Folders</span>
+                <button onclick="App.azureRefreshFolder()" class="btn btn-sm btn-ghost" title="Refresh" style="padding:2px 6px"><i class="ti ti-refresh" style="font-size:11px"></i></button>
+              </div>
+              <div id="az-folder-tree" style="height:340px;overflow-y:auto;padding:6px">
+                <div style="color:#9ca3af;font-size:12px;text-align:center;padding:24px">Select a container to browse</div>
+              </div>
+            </div>
+
+            <!-- RIGHT: File list -->
+            <div>
+              <div style="padding:8px 12px;border-bottom:1px solid #e5e7eb;background:#fafafa;display:flex;align-items:center;gap:8px">
+                <span id="az-file-count" style="font-size:11px;color:#6b7280">No folder selected</span>
+                <div style="margin-left:auto;display:flex;gap:6px">
+                  <button class="btn btn-sm btn-ghost" onclick="App.azureToggleSearch()" title="Search files" style="padding:3px 8px"><i class="ti ti-search" style="font-size:12px"></i></button>
+                  <button class="btn btn-sm btn-ghost" onclick="App.azureRefreshFolder()" title="Refresh" style="padding:3px 8px"><i class="ti ti-refresh" style="font-size:12px"></i></button>
+                </div>
+              </div>
+              <div id="az-file-list" style="height:340px;overflow-y:auto">
+                <!-- column headers -->
+                <div id="az-file-header" style="display:none;padding:6px 12px;background:#f8fafc;border-bottom:1px solid #e5e7eb;display:grid;grid-template-columns:1fr 80px 120px 80px;gap:8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6b7280;cursor:pointer">
+                  <div onclick="App.azureSortFiles('name')">Name <span id="sort-name-icon"></span></div>
+                  <div onclick="App.azureSortFiles('size')" style="text-align:right">Size <span id="sort-size-icon"></span></div>
+                  <div onclick="App.azureSortFiles('date')">Modified <span id="sort-date-icon"></span></div>
+                  <div>Action</div>
+                </div>
+                <div id="az-file-rows" style="padding:4px">
+                  <div style="color:#9ca3af;font-size:12px;text-align:center;padding:40px 16px">
+                    <i class="ti ti-folder-open" style="font-size:32px;display:block;margin-bottom:8px;opacity:.3"></i>
+                    Select a folder to view files
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Row 3: Selected file detail + file assignment cards ── -->
+        <div id="az-select-panel" style="display:none;margin-bottom:16px">
+
+          <!-- Preview panel for hovered/clicked file -->
+          <div id="az-preview-bar" style="display:none;padding:10px 14px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;margin-bottom:10px;font-size:12px">
+            <div style="display:flex;align-items:center;gap:12px">
+              <i class="ti ti-file-description" style="color:#d97706;font-size:20px;flex-shrink:0"></i>
+              <div style="flex:1;min-width:0">
+                <div id="az-preview-name" style="font-weight:700;color:#111827;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+                <div style="display:flex;gap:12px;margin-top:3px;flex-wrap:wrap">
+                  <span><i class="ti ti-route" style="color:#9ca3af"></i> <span id="az-preview-path" style="color:#6b7280;font-family:monospace;font-size:11px"></span></span>
+                  <span><i class="ti ti-database" style="color:#9ca3af"></i> <span id="az-preview-size" style="color:#6b7280"></span></span>
+                  <span><i class="ti ti-clock" style="color:#9ca3af"></i> <span id="az-preview-modified" style="color:#6b7280"></span></span>
+                </div>
+              </div>
+              <div style="display:flex;gap:6px;flex-shrink:0">
+                <button class="btn btn-sm" style="background:#1d4ed8;color:#fff;border-color:#1d4ed8" onclick="App.azureSetSide('internal')"><i class="ti ti-building"></i> Set Internal</button>
+                <button class="btn btn-sm" style="background:#7c3aed;color:#fff;border-color:#7c3aed" onclick="App.azureSetSide('vendor')"><i class="ti ti-handshake"></i> Set Vendor</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Internal + Vendor file cards -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+
+            <!-- Internal file card -->
+            <div class="card card-accent-blue">
+              <div class="card-header" style="padding:10px 14px">
+                <h3 style="font-size:13px"><i class="ti ti-building" style="color:var(--blue)"></i> Internal File</h3>
+                <span id="az-int-badge" class="badge badge-gray">Not set</span>
+              </div>
+              <div class="card-body" style="padding:12px 14px;min-height:80px">
+                <div id="az-int-card-empty" style="color:#9ca3af;font-size:12px;text-align:center;padding:12px 0">
+                  <i class="ti ti-file-plus" style="font-size:20px;display:block;margin-bottom:4px;opacity:.4"></i>
+                  Browse and click <strong>"Set Internal"</strong>
+                </div>
+                <div id="az-int-card-filled" style="display:none">
+                  <div style="display:flex;align-items:flex-start;gap:10px">
+                    <div style="width:36px;height:36px;background:var(--blue);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                      <i class="ti ti-file-spreadsheet" style="color:#fff;font-size:16px"></i>
+                    </div>
+                    <div style="flex:1;min-width:0">
+                      <div id="az-int-card-name" style="font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+                      <div id="az-int-card-meta" style="font-size:11px;color:#6b7280;margin-top:2px"></div>
+                      <div id="az-int-card-path" style="font-size:10px;color:#9ca3af;margin-top:2px;font-family:monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+                    </div>
+                    <button onclick="App.azureClearSide('internal')" title="Remove" style="background:none;border:none;cursor:pointer;color:#9ca3af;flex-shrink:0"><i class="ti ti-x"></i></button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Vendor file card -->
+            <div class="card card-accent-purple">
+              <div class="card-header" style="padding:10px 14px">
+                <h3 style="font-size:13px"><i class="ti ti-handshake" style="color:var(--purple)"></i> Vendor File</h3>
+                <span id="az-vnd-badge" class="badge badge-gray">Not set</span>
+              </div>
+              <div class="card-body" style="padding:12px 14px;min-height:80px">
+                <div id="az-vnd-card-empty" style="color:#9ca3af;font-size:12px;text-align:center;padding:12px 0">
+                  <i class="ti ti-file-plus" style="font-size:20px;display:block;margin-bottom:4px;opacity:.4"></i>
+                  Browse and click <strong>"Set Vendor"</strong>
+                </div>
+                <div id="az-vnd-card-filled" style="display:none">
+                  <div style="display:flex;align-items:flex-start;gap:10px">
+                    <div style="width:36px;height:36px;background:var(--purple);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                      <i class="ti ti-file-spreadsheet" style="color:#fff;font-size:16px"></i>
+                    </div>
+                    <div style="flex:1;min-width:0">
+                      <div id="az-vnd-card-name" style="font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+                      <div id="az-vnd-card-meta" style="font-size:11px;color:#6b7280;margin-top:2px"></div>
+                      <div id="az-vnd-card-path" style="font-size:10px;color:#9ca3af;margin-top:2px;font-family:monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+                    </div>
+                    <button onclick="App.azureClearSide('vendor')" title="Remove" style="background:none;border:none;cursor:pointer;color:#9ca3af;flex-shrink:0"><i class="ti ti-x"></i></button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div><!-- /grid -->
+
+          <!-- Load button row -->
+          <div style="margin-top:10px;display:flex;align-items:center;gap:10px;justify-content:flex-end">
+            <div id="az-load-progress" style="display:none;flex:1;font-size:12px;color:#6b7280"></div>
+            <button class="btn btn-primary" id="az-load-btn" onclick="App.azureLoadBoth()" disabled>
+              <i class="ti ti-cloud-download"></i> Load Selected Files into Workflow
+            </button>
+          </div>
+
+        </div><!-- /az-select-panel -->
+
+        <!-- Bottom nav -->
+        <div style="display:flex;justify-content:space-between;margin-top:4px">
+          <button class="btn" onclick="App.chooseSource(null)"><i class="ti ti-arrow-left"></i> Back</button>
+          <button class="btn btn-primary" id="az-next-btn" onclick="App.goToSchema()" disabled>
+            Continue to Schema Map <i class="ti ti-arrow-right"></i>
+          </button>
+        </div>
+
+      </div><!-- /up-screen-azure -->
+    </div><!-- /view-upload -->
+
+    <!-- ═══ VIEW: SCHEMA MAP ═══ -->
+    <div id="view-schema" class="view">
+      <div class="grid-2 mb-16">
+        <div class="card card-accent-blue">
+          <div class="card-header"><h3><i class="ti ti-building"></i> Internal Schema</h3><span id="int-col-count" class="badge badge-blue">0 cols</span></div>
+          <div class="card-body p-0"><div id="int-schema-list" style="max-height:200px;overflow-y:auto;padding:10px"></div></div>
+        </div>
+        <div class="card card-accent-purple">
+          <div class="card-header"><h3><i class="ti ti-handshake"></i> Vendor Schema</h3><span id="vnd-col-count" class="badge badge-purple">0 cols</span></div>
+          <div class="card-body p-0"><div id="vnd-schema-list" style="max-height:200px;overflow-y:auto;padding:10px"></div></div>
+        </div>
+      </div>
+      <div class="card mb-16">
+        <div class="card-header">
+          <h3><i class="ti ti-wand"></i> Column Mapping</h3>
+          <div style="display:flex;gap:8px">
+            <span id="mapping-stats" class="badge badge-gray">0 mapped</span>
+            <button class="btn btn-sm btn-primary" onclick="App.autoSuggestMappings()"><i class="ti ti-wand"></i> Auto-Suggest</button>
+            <button class="btn btn-sm" onclick="App.addMappingRow()"><i class="ti ti-plus"></i> Add Row</button>
+            <button class="btn btn-sm" onclick="App.saveMappingConfig()"><i class="ti ti-device-floppy"></i> Save Config</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6b7280;display:grid;grid-template-columns:1fr 40px 1fr 100px 32px;gap:8px;padding:0 0 6px;border-bottom:1px solid var(--border)">
+            <div>Internal Column</div><div></div><div>Vendor Column</div><div>Confidence</div><div></div>
+          </div>
+          <div id="mapping-rows"></div>
+          <div id="mapping-empty" style="text-align:center;padding:24px;color:#9ca3af;font-size:13px">
+            <i class="ti ti-wand" style="font-size:28px;display:block;margin-bottom:8px;opacity:.4"></i>
+            Load both files and click "Auto-Suggest" to generate mappings
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><h3><i class="ti ti-history"></i> Saved Mapping Configurations</h3></div>
+        <div class="card-body p-0" id="saved-mappings-list">
+          <div style="padding:16px;text-align:center;color:#9ca3af;font-size:13px">No saved mappings yet</div>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:16px">
+        <button class="btn" onclick="App.showView('upload')"><i class="ti ti-arrow-left"></i> Back</button>
+        <button class="btn btn-primary" onclick="App.showView('configure')">Continue to Configure <i class="ti ti-arrow-right"></i></button>
+      </div>
+    </div>
+
+    <!-- ═══ VIEW: CONFIGURE ═══ -->
+    <div id="view-configure" class="view">
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header"><h3><i class="ti ti-key"></i> Primary Key Selection</h3></div>
+          <div class="card-body">
+            <div class="form-group">
+              <label>Internal key columns <small style="font-weight:400;color:#9ca3af">(Ctrl+click for multi)</small></label>
+              <select id="int-key-select" multiple style="height:100px"></select>
+            </div>
+            <div class="form-group">
+              <label>Vendor key columns</label>
+              <select id="vnd-key-select" multiple style="height:100px"></select>
+            </div>
+            <div class="form-group">
+              <label>Comparison direction</label>
+              <div style="display:flex;gap:10px;margin-top:4px">
+                <label style="display:flex;align-items:center;gap:6px;font-weight:400;cursor:pointer"><input type="radio" name="dir" value="int_to_vnd" checked> Internal → Vendor</label>
+                <label style="display:flex;align-items:center;gap:6px;font-weight:400;cursor:pointer"><input type="radio" name="dir" value="vnd_to_int"> Vendor → Internal</label>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3><i class="ti ti-adjustments"></i> Comparison Rules</h3></div>
+          <div class="card-body">
+            <div class="form-group">
+              <label>Columns to ignore</label>
+              <select id="ignore-cols-select" multiple style="height:80px"></select>
+              <div class="text-sm text-muted mt-12">Excluded from field-level diff analysis.</div>
+            </div>
+            <hr class="sep">
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <label class="toggle" onclick="this.querySelector('.toggle-switch').classList.toggle('on')"><div class="toggle-switch on" id="opt-case"></div> Case-insensitive comparison</label>
+              <label class="toggle" onclick="this.querySelector('.toggle-switch').classList.toggle('on')"><div class="toggle-switch on" id="opt-trim"></div> Trim whitespace before comparing</label>
+              <label class="toggle" onclick="this.querySelector('.toggle-switch').classList.toggle('on')"><div class="toggle-switch" id="opt-normalize"></div> Normalize special characters</label>
+              <label class="toggle" onclick="this.querySelector('.toggle-switch').classList.toggle('on')"><div class="toggle-switch on" id="opt-chunk"></div> Chunked processing (large files)</label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card mt-16" style="border-left:4px solid var(--amber)">
+        <div class="card-header">
+          <h3><i class="ti ti-filter"></i> Filter Before Compare <span class="badge badge-amber" style="margin-left:6px">Optional</span></h3>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:12px;color:#6b7280">Scope to specific values only</span>
+            <div class="toggle-switch" id="filter-master-switch" onclick="App.toggleFilterPanel(this)"></div>
+          </div>
+        </div>
+        <div id="filter-panel-body" style="display:none">
+          <div class="card-body">
+            <div class="alert alert-info" style="margin-bottom:14px">
+              <i class="ti ti-info-circle"></i>
+              <span>Select a column and pick values. Only matching rows will be compared.</span>
+            </div>
+            <div id="active-filter-chips" style="display:none;margin-bottom:12px">
+              <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:#374151;margin-bottom:6px">Active Filters</div>
+              <div id="filter-chips-container" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+            </div>
+            <div style="background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:14px">
+              <div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:10px"><i class="ti ti-plus"></i> Add Filter</div>
+              <div class="grid-2" style="gap:12px;align-items:end">
+                <div>
+                  <label style="font-size:11px;font-weight:600;margin-bottom:4px;display:block">Column to filter on</label>
+                  <select id="filter-col-select" onchange="App.filterColChanged()" style="font-size:12px">
+                    <option value="">— choose column —</option>
+                    <optgroup label="Internal File" id="filter-int-optgroup"></optgroup>
+                    <optgroup label="Vendor File" id="filter-vnd-optgroup"></optgroup>
+                  </select>
+                </div>
+                <div id="filter-value-area" style="display:none">
+                  <label style="font-size:11px;font-weight:600;margin-bottom:4px;display:block">Select values <span id="filter-val-count" style="font-weight:400;color:#9ca3af"></span></label>
+                  <input type="text" id="filter-val-search" placeholder="Search values…" oninput="App.filterValSearch(this.value)" style="font-size:12px;margin-bottom:6px">
+                  <div id="filter-val-list" style="max-height:130px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;background:#fff;margin-bottom:8px"></div>
+                  <div style="display:flex;gap:6px">
+                    <button class="btn btn-sm" onclick="App.filterSelectAll()"><i class="ti ti-checks"></i> All</button>
+                    <button class="btn btn-sm" onclick="App.filterClearAll()"><i class="ti ti-x"></i> Clear</button>
+                    <button class="btn btn-sm btn-primary" onclick="App.addFilterRule()" style="margin-left:auto"><i class="ti ti-plus"></i> Add Filter</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div id="filter-rules-list" style="margin-top:12px"></div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;margin-top:16px">
+        <button class="btn" onclick="App.showView('schema')"><i class="ti ti-arrow-left"></i> Back</button>
+        <button class="btn btn-primary" onclick="App.runComparison()"><i class="ti ti-player-play"></i> Run Comparison</button>
+      </div>
+    </div>
+
+    <!-- ═══ VIEW: RESULTS ═══ -->
+    <div id="view-results" class="view">
+      <div id="results-empty" style="text-align:center;padding:60px 20px;color:#9ca3af">
+        <i class="ti ti-chart-bar" style="font-size:48px;display:block;margin-bottom:16px;opacity:.3"></i>
+        <div style="font-size:16px;font-weight:600;color:#374151;margin-bottom:8px">No results yet</div>
+        <div style="font-size:13px;margin-bottom:20px">Load your files and configure comparison settings, then run a comparison</div>
+        <button class="btn btn-primary" onclick="App.runComparison()"><i class="ti ti-player-play"></i> Run Comparison</button>
+      </div>
+      <div id="results-content" style="display:none">
+        <div class="grid-5 mb-16" id="results-metrics"></div>
+        <div class="card mb-16">
+          <div class="card-body" style="padding:12px 18px">
+            <div style="display:flex;align-items:center;gap:16px">
+              <span style="font-size:13px;color:#6b7280;white-space:nowrap">Match Rate</span>
+              <div style="flex:1"><div class="progress-wrap"><div class="progress-bar" id="match-rate-bar" style="width:0%"></div></div></div>
+              <strong id="match-rate-val" style="font-size:16px;white-space:nowrap">0%</strong>
+              <span id="match-rate-badge" class="badge badge-gray">—</span>
+            </div>
+          </div>
+        </div>
+        <div id="active-compare-context" style="display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
+          <span style="font-size:11px;color:#9ca3af">Comparing:</span>
+          <span class="chip chip-green" id="ctx-int-file"><i class="ti ti-building"></i> —</span>
+          <i class="ti ti-arrows-right-left" style="color:#9ca3af;font-size:13px"></i>
+          <span class="chip chip-purple" id="ctx-vnd-file"><i class="ti ti-handshake"></i> —</span>
+          <span style="font-size:11px;color:#9ca3af;margin-left:4px" id="ctx-timestamp"></span>
+        </div>
+        <div class="tabs" id="results-tabs">
+          <div class="tab active" data-tab="tab-summary">Summary</div>
+          <div class="tab" data-tab="tab-detail">Detail Table</div>
+          <div class="tab" data-tab="tab-charts">Charts</div>
+          <div class="tab" data-tab="tab-recs">Recommendations</div>
+        </div>
+        <div id="tab-summary" class="tab-panel active">
+          <div class="grid-2">
+            <div class="card">
+              <div class="card-header"><h3><i class="ti ti-table"></i> Data Counts</h3></div>
+              <div class="card-body p-0">
+                <table class="tbl"><thead><tr><th>Metric</th><th>Internal</th><th>Vendor</th></tr></thead>
+                <tbody id="summary-counts-tbody"></tbody></table>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-header"><h3><i class="ti ti-layout-columns"></i> Schema Summary</h3></div>
+              <div class="card-body"><div class="grid-2" id="schema-summary-grid" style="gap:8px"></div></div>
+            </div>
+          </div>
+          <div class="card mt-16">
+            <div class="card-header"><h3><i class="ti ti-chart-bar"></i> Top Mismatched Columns</h3></div>
+            <div class="card-body p-0">
+              <table class="tbl"><thead><tr><th>Column</th><th>Diff Count</th><th>Diff %</th><th>Visual</th></tr></thead>
+              <tbody id="top-diffs-tbody"></tbody></table>
+            </div>
+          </div>
+        </div>
+        <div id="tab-detail" class="tab-panel">
+          <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+            <input type="text" id="detail-search" placeholder="Search key..." style="width:200px" oninput="App.detailSearch(this.value)">
+            <select id="detail-status-filter" style="width:180px" onchange="App.loadDetailPage(1)">
+              <option value="">All statuses</option>
+              <option value="matched">Matched</option>
+              <option value="mismatch">Field Differences</option>
+            </select>
+            <select id="detail-page-size" style="width:100px" onchange="App.loadDetailPage(1)">
+              <option value="50">Show 50</option><option value="100" selected>Show 100</option><option value="500">Show 500</option>
+            </select>
+            <button class="btn btn-sm" onclick="App.exportSection('matched','csv')"><i class="ti ti-download"></i> Export CSV</button>
+            <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+              <span id="detail-page-info" style="font-size:12px;color:#6b7280"></span>
+              <button class="btn btn-sm btn-ghost" id="detail-prev-btn" onclick="App.detailChangePage(-1)"><i class="ti ti-chevron-left"></i></button>
+              <button class="btn btn-sm btn-ghost" id="detail-next-btn" onclick="App.detailChangePage(1)"><i class="ti ti-chevron-right"></i></button>
+            </div>
+          </div>
+          <div style="overflow-x:auto">
+            <table class="tbl"><thead><tr><th>Status</th><th>Key</th><th>Changed Fields</th></tr></thead>
+            <tbody id="detail-tbody"></tbody></table>
+          </div>
+        </div>
+        <div id="tab-charts" class="tab-panel">
+          <div class="grid-2">
+            <div class="card"><div class="card-header"><h3>SKU Distribution</h3></div>
+              <div class="card-body" style="padding:10px"><canvas id="pie-chart" height="220"></canvas></div>
+            </div>
+            <div class="card"><div class="card-header"><h3>Top Mismatched Fields</h3></div>
+              <div class="card-body" style="padding:10px"><canvas id="bar-chart" height="220"></canvas></div>
+            </div>
+          </div>
+        </div>
+        <div id="tab-recs" class="tab-panel">
+          <div id="recommendations-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ VIEW: SKU ANALYSIS ═══ -->
+    <div id="view-sku" class="view">
+      <div id="sku-empty-state" style="text-align:center;padding:60px;color:#9ca3af">
+        <i class="ti ti-tag" style="font-size:48px;display:block;margin-bottom:16px;opacity:.3"></i>
+        <div style="font-size:15px;font-weight:600;color:#374151;margin-bottom:8px">Run a comparison first</div>
+        <button class="btn btn-primary" onclick="App.runComparison()"><i class="ti ti-player-play"></i> Run Comparison</button>
+      </div>
+      <div id="sku-content" style="display:none">
+        <div class="grid-4 mb-16" id="sku-metrics"></div>
+        <div class="card mb-16">
+          <div class="card-header">
+            <h3><i class="ti ti-tag"></i> All Records</h3>
+            <div style="display:flex;gap:8px">
+              <input type="text" id="sku-search" placeholder="Search key..." style="width:160px;font-size:12px" oninput="App.loadSkuPage(1)">
+              <select id="sku-status-filter" style="font-size:12px;width:160px" onchange="App.loadSkuPage(1)">
+                <option value="">All</option><option value="matched">Matched</option>
+                <option value="mismatch">Mismatch</option>
+              </select>
+              <button class="btn btn-sm" onclick="App.exportSection('missing','csv')"><i class="ti ti-download"></i> Missing CSV</button>
+              <button class="btn btn-sm" onclick="App.exportSection('extra','csv')"><i class="ti ti-download"></i> Extra CSV</button>
+            </div>
+          </div>
+          <div class="card-body p-0">
+            <table class="tbl"><thead><tr><th>Status</th><th>Key</th><th>Source</th><th>Diff Count</th></tr></thead>
+            <tbody id="sku-tbody"></tbody></table>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:10px 14px;font-size:12px;color:#6b7280;border-top:1px solid var(--border)">
+            <span id="sku-page-info"></span>
+            <div style="display:flex;gap:6px">
+              <button class="btn btn-sm btn-ghost" onclick="App.skuChangePage(-1)"><i class="ti ti-chevron-left"></i></button>
+              <button class="btn btn-sm btn-ghost" onclick="App.skuChangePage(1)"><i class="ti ti-chevron-right"></i></button>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3><i class="ti ti-copy-x"></i> Duplicate Detection</h3></div>
+          <div class="card-body p-0">
+            <table class="tbl"><thead><tr><th>Source</th><th>Key</th><th>Count</th></tr></thead>
+            <tbody id="dup-tbody"></tbody></table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ VIEW: FIELD DIFFERENCES ═══ -->
+    <div id="view-diff" class="view">
+      <div id="diff-empty-state" style="text-align:center;padding:60px;color:#9ca3af">
+        <i class="ti ti-git-diff" style="font-size:48px;display:block;margin-bottom:16px;opacity:.3"></i>
+        <div style="font-size:15px;font-weight:600;color:#374151;margin-bottom:8px">Run a comparison first</div>
+        <button class="btn btn-primary" onclick="App.runComparison()"><i class="ti ti-player-play"></i> Run Comparison</button>
+      </div>
+      <div id="diff-content" style="display:none">
+        <div class="grid-4 mb-16" id="diff-metrics"></div>
+        <div class="card">
+          <div class="card-header">
+            <h3><i class="ti ti-git-diff"></i> Field-Level Differences</h3>
+            <div style="display:flex;gap:8px">
+              <select id="diff-col-filter" style="width:160px;font-size:12px" onchange="App.loadDiffPage(1)"><option value="">All columns</option></select>
+              <button class="btn btn-sm" onclick="App.exportSection('diffs','csv')"><i class="ti ti-download"></i> Export Diff Report</button>
+            </div>
+          </div>
+          <div class="card-body p-0">
+            <table class="tbl"><thead><tr><th>Record Key</th><th>Column</th><th>Internal Value</th><th>Vendor Value</th></tr></thead>
+            <tbody id="diff-tbody"></tbody></table>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:10px 14px;font-size:12px;color:#6b7280;border-top:1px solid var(--border)">
+            <span id="diff-page-info"></span>
+            <div style="display:flex;gap:6px">
+              <button class="btn btn-sm btn-ghost" onclick="App.diffChangePage(-1)"><i class="ti ti-chevron-left"></i></button>
+              <button class="btn btn-sm btn-ghost" onclick="App.diffChangePage(1)"><i class="ti ti-chevron-right"></i></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ VIEW: CATEGORY MAP ═══ -->
+    <div id="view-category" class="view">
+      <div class="card mb-16">
+        <div class="card-header"><h3><i class="ti ti-category"></i> Category Column Selection</h3></div>
+        <div class="card-body">
+          <div class="grid-2">
+            <div class="form-group"><label>Internal category column</label><select id="cat-int-col" style="font-size:13px"><option value="">— select —</option></select></div>
+            <div class="form-group"><label>Vendor category column</label><select id="cat-vnd-col" style="font-size:13px"><option value="">— select —</option></select></div>
+          </div>
+          <button class="btn btn-primary" onclick="App.runCategoryAnalysis()"><i class="ti ti-player-play"></i> Run Category Analysis</button>
+        </div>
+      </div>
+      <div class="card" id="cat-results" style="display:none">
+        <div class="card-header"><h3><i class="ti ti-chart-bar"></i> Category Comparison</h3>
+          <button class="btn btn-sm" onclick="App.exportCategoryAnalysis()"><i class="ti ti-download"></i> Export CSV</button>
+        </div>
+        <div class="card-body p-0">
+          <table class="tbl"><thead><tr><th>Internal Value</th><th>Internal Count</th><th>Vendor Count</th><th>Diff</th><th>Status</th></tr></thead>
+          <tbody id="cat-tbody"></tbody></table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ VIEW: BRAND ANALYSIS ═══ -->
+    <div id="view-brand" class="view">
+      <div class="card mb-16">
+        <div class="card-header"><h3><i class="ti ti-search"></i> Brand / Keyword Selection</h3></div>
+        <div class="card-body">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Enter brand names (one per line)</label>
+              <textarea id="brand-input" style="height:110px;resize:vertical" placeholder="Tide&#10;Ariel&#10;Persil"></textarea>
+            </div>
+            <div>
+              <div class="form-group">
+                <label>Internal columns to search</label>
+                <select id="brand-int-cols" multiple style="height:55px"></select>
+              </div>
+              <div class="form-group">
+                <label>Vendor columns to search</label>
+                <select id="brand-vnd-cols" multiple style="height:55px"></select>
+              </div>
+            </div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="App.runBrandAnalysis()"><i class="ti ti-player-play"></i> Run Brand Analysis</button>
+        </div>
+      </div>
+      <div class="card" id="brand-results" style="display:none">
+        <div class="card-header"><h3><i class="ti ti-chart-bar"></i> Brand Results</h3>
+          <button class="btn btn-sm" onclick="App.exportBrandResults()"><i class="ti ti-download"></i> Export</button>
+        </div>
+        <div class="card-body p-0">
+          <table class="tbl"><thead><tr><th>Brand</th><th>Internal SKUs</th><th>Vendor SKUs</th><th>Diff</th><th>Match %</th></tr></thead>
+          <tbody id="brand-tbody"></tbody></table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ VIEW: PERFORMANCE ═══ -->
+    <div id="view-performance" class="view">
+      <div class="grid-4 mb-16" id="perf-metrics">
+        <div class="metric metric-top" style="border-top-color:var(--gray)"><div class="metric-val" style="color:#9ca3af">—</div><div class="metric-lbl">Last Run Time</div></div>
+        <div class="metric metric-top" style="border-top-color:var(--gray)"><div class="metric-val" style="color:#9ca3af">—</div><div class="metric-lbl">Rows/sec</div></div>
+        <div class="metric metric-top" style="border-top-color:var(--gray)"><div class="metric-val" style="color:#9ca3af">—</div><div class="metric-lbl">Peak Memory</div></div>
+        <div class="metric metric-top" style="border-top-color:var(--gray)"><div class="metric-val" style="color:#9ca3af">—</div><div class="metric-lbl">Chunks Used</div></div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header"><h3><i class="ti ti-settings"></i> Performance Settings</h3></div>
+          <div class="card-body">
+            <div class="form-group">
+              <label>Chunk size (rows per chunk)</label>
+              <input type="range" id="chunk-size-slider" min="10000" max="500000" step="10000" value="100000" oninput="document.getElementById('chunk-val').textContent=Number(this.value).toLocaleString()+' rows'">
+              <div id="chunk-val" style="font-size:12px;color:#6b7280;margin-top:4px">100,000 rows</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:10px;margin-top:14px">
+              <label class="toggle" onclick="this.querySelector('.toggle-switch').classList.toggle('on')"><div class="toggle-switch on"></div> Enable chunked processing</label>
+              <label class="toggle" onclick="this.querySelector('.toggle-switch').classList.toggle('on')"><div class="toggle-switch on"></div> Memory-optimized mode</label>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3><i class="ti ti-activity"></i> Processing Timeline</h3></div>
+          <div class="card-body" id="perf-timeline">
+            <div style="text-align:center;padding:20px;color:#9ca3af;font-size:13px">Run a comparison to see timeline</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ VIEW: EXPORT ═══ -->
+    <div id="view-export" class="view">
+      <div id="export-no-results" class="alert alert-warning mb-16">
+        <i class="ti ti-alert-triangle"></i> No comparison results yet. Run a comparison first to generate reports.
+      </div>
+      <div id="export-ready" style="display:none">
+        <div class="alert alert-success mb-16"><i class="ti ti-check"></i> Comparison complete. All reports are ready to download.</div>
+        <div class="grid-3">
+          <div class="card card-accent-blue">
+            <div class="card-header"><h3><i class="ti ti-file-spreadsheet"></i> Full Excel Report</h3></div>
+            <div class="card-body">
+              <p style="font-size:13px;color:#6b7280;margin-bottom:14px">All sections: Summary, Matched, Missing, Extra, Field Diffs, Schema</p>
+              <div id="excel-prog-wrap" style="display:none;margin-bottom:10px"><div class="progress-wrap"><div class="progress-bar" id="excel-prog-bar" style="width:30%;background:var(--blue);animation:pulse 1s infinite"></div></div></div>
+              <button class="btn btn-primary w-full" onclick="App.exportFull('excel')"><i class="ti ti-download"></i> Download Excel (.xlsx)</button>
+            </div>
+          </div>
+          <div class="card card-accent-green">
+            <div class="card-header"><h3><i class="ti ti-file-text"></i> CSV Exports</h3></div>
+            <div class="card-body">
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <button class="btn w-full" onclick="App.exportSection('missing','csv')"><i class="ti ti-download"></i> Missing in Vendor</button>
+                <button class="btn w-full" onclick="App.exportSection('extra','csv')"><i class="ti ti-download"></i> Extra in Vendor</button>
+                <button class="btn w-full" onclick="App.exportSection('diffs','csv')"><i class="ti ti-download"></i> Field Differences</button>
+                <button class="btn w-full" onclick="App.exportSection('matched','csv')"><i class="ti ti-download"></i> Matched Records</button>
+              </div>
+            </div>
+          </div>
+          <div class="card card-accent-purple">
+            <div class="card-header"><h3><i class="ti ti-file-type-pdf"></i> PDF Summary</h3></div>
+            <div class="card-body">
+              <p style="font-size:13px;color:#6b7280;margin-bottom:14px">Executive summary with key metrics and recommendations</p>
+              <div id="pdf-prog-wrap" style="display:none;margin-bottom:10px"><div class="progress-wrap"><div class="progress-bar" style="width:30%;background:var(--purple);animation:pulse 1s infinite"></div></div></div>
+              <button class="btn btn-primary w-full" style="background:var(--purple);border-color:var(--purple)" onclick="App.exportFull('pdf')"><i class="ti ti-download"></i> Download PDF</button>
+            </div>
+          </div>
+        </div>
+        <div class="card mt-16">
+          <div class="card-header"><h3><i class="ti ti-archive"></i> Download Center</h3>
+            <button class="btn btn-sm" onclick="App.loadReportList()"><i class="ti ti-refresh"></i> Refresh</button>
+          </div>
+          <div class="card-body p-0">
+            <table class="tbl"><thead><tr><th>Filename</th><th>Type</th><th>Size</th><th>Created</th><th>Actions</th></tr></thead>
+            <tbody id="reports-tbody"></tbody></table>
+            <div id="reports-empty" style="padding:16px;text-align:center;color:#9ca3af;font-size:13px">No reports generated yet</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+</div><!-- /app -->
+
+<!-- TOAST CONTAINER -->
+<div id="toast-container" style="position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:10px;max-width:360px;pointer-events:none"></div>
+
+<!-- PROGRESS OVERLAY -->
+<div id="progress-overlay" style="display:none;position:fixed;inset:0;background:rgba(17,24,39,.65);z-index:9990;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:14px;padding:32px 36px;min-width:360px;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,.3)">
+    <div id="overlay-icon" style="font-size:42px;margin-bottom:14px">⚙️</div>
+    <div id="overlay-title" style="font-size:17px;font-weight:700;color:#111827;margin-bottom:6px">Processing...</div>
+    <div id="overlay-msg" style="font-size:13px;color:#6b7280;margin-bottom:18px">Please wait</div>
+    <div class="progress-wrap" style="margin-bottom:10px"><div class="progress-bar" id="overlay-bar" style="width:0%;background:var(--blue);transition:width .3s"></div></div>
+    <div id="overlay-pct" style="font-size:14px;font-weight:700;color:var(--blue)">0%</div>
+  </div>
+</div>
+
+<!-- ACTIVITY LOG PANEL -->
+<div id="activity-panel" style="display:none;position:fixed;right:0;top:0;bottom:0;width:340px;background:#fff;border-left:1px solid var(--border);z-index:200;flex-direction:column;box-shadow:-8px 0 24px rgba(0,0,0,.08)">
+  <div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+    <h3 style="font-size:14px;font-weight:700;color:#111827"><i class="ti ti-activity"></i> Activity Log</h3>
+    <div style="display:flex;gap:6px">
+      <button class="btn btn-ghost btn-sm" onclick="App.clearActivityLog()"><i class="ti ti-trash"></i></button>
+      <button class="btn btn-ghost btn-sm" onclick="App.toggleActivityLog()"><i class="ti ti-x"></i></button>
+    </div>
+  </div>
+  <div id="activity-log-list" style="flex:1;overflow-y:auto;padding:8px"></div>
+</div>
+
+<!-- Activity Log Toggle -->
+<button onclick="App.toggleActivityLog()" style="position:fixed;bottom:24px;left:260px;z-index:150;background:#1e293b;color:#e2e8f0;border:none;border-radius:99px;padding:8px 16px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px;box-shadow:0 4px 12px rgba(0,0,0,.2)">
+  <i class="ti ti-activity"></i> Activity Log
+  <span id="activity-unread" style="background:#ef4444;color:#fff;border-radius:99px;padding:0 7px;font-size:10px;font-weight:700;display:none">0</span>
+</button>
+
+<script src="/js/app.js"></script>
+</body>
+</html>
