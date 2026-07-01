@@ -284,17 +284,21 @@ function _buildDetailRow(result, item, type) {
     ? { ...item.vndRow }
     : { ...item.intRow };
 
-  row._status = type === 'extra'
-    ? 'extra'
-    : type === 'missing'
-      ? 'missing'
-      : (item.hasDiffs ? 'mismatch' : 'matched');
+  row._status = _resolveRowStatus(item, type);
   row._key = item.key;
   row._diffCount = item.diffs?.length || '';
   row._diffCols = item.diffs?.map(d => d.column).join(', ') || '';
 
   _addMappedValues(row, result, item, type);
   return row;
+}
+
+function _resolveRowStatus(item, type) {
+  if (type === 'extra') return 'extra';
+  if (type === 'missing') return 'missing';
+
+  const hasDiffEntries = Array.isArray(item?.diffs) ? item.diffs.length > 0 : false;
+  return (item?.hasDiffs || hasDiffEntries) ? 'mismatch' : 'matched';
 }
 
 function _addMappedValues(row, result, item, type) {

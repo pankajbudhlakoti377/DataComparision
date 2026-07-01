@@ -21,7 +21,7 @@ class ReportGenerator {
     // ─ Sheet 1: Comparison Results (existing) ─────────────────────────────
     const comparisonRows = [
       ...matched.slice(0, 100000).map(m => ({
-        Status: m.hasDiffs ? 'Mismatch' : 'Matched',
+        Status: this._resolveStatus(m),
         Key: m.key,
         DiffCount: m.diffs?.length || 0,
         DiffColumns: m.diffs?.map(d => d.column).join(', ') || '',
@@ -288,6 +288,11 @@ class ReportGenerator {
     const out = {};
     for (const [k, v] of Object.entries(row)) out[pfx + k] = v;
     return out;
+  }
+
+  _resolveStatus(item) {
+    const hasDiffEntries = Array.isArray(item?.diffs) ? item.diffs.length > 0 : false;
+    return (item?.hasDiffs || hasDiffEntries) ? 'Mismatch' : 'Matched';
   }
 
   async listReports() {

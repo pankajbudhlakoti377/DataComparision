@@ -43,7 +43,7 @@ router.post('/generate', async (req, res) => {
       if (section === 'missing')  csvData = (result.missingInVendor || []).map(m => ({ _status: 'Missing', Key: m.key, ...m.intRow }));
       else if (section === 'extra') csvData = (result.extraInVendor || []).map(m => ({ _status: 'Extra',   Key: m.key, ...m.vndRow }));
       else if (section === 'diffs') csvData = (result.fieldDiffs    || []).map(d => ({ RecordKey: d.key, Column: d.column, InternalValue: d.internalValue, VendorValue: d.vendorValue }));
-      else csvData = (result.matched || []).map(m => ({ _status: m.hasDiffs ? 'Mismatch' : 'Matched', Key: m.key, ...m.intRow }));
+      else csvData = (result.matched || []).map(m => ({ _status: _resolveExportStatus(m), Key: m.key, ...m.intRow }));
       if (!csvData.length) return res.status(400).json({ error: 'No data to export for this section' });
       filePath = await gen.generateCsv(csvData, filename);
     } else {
@@ -86,5 +86,10 @@ router.delete('/:filename', async (req, res) => {
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+
+function _resolveExportStatus(item) {
+  const hasDiffEntries = Array.isArray(item?.diffs) ? item.diffs.length > 0 : false;
+  return (item?.hasDiffs || hasDiffEntries) ? 'Mismatch' : 'Matched';
+}
 
 module.exports = router;

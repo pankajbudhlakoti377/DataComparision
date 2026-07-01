@@ -634,49 +634,35 @@
                 <button class="btn btn-sm btn-ghost" id="azure-data-next-btn" onclick="App.changeDataTablePage('azure', 1)"><i class="ti ti-chevron-right"></i></button>
               </div>
             </div>
-            <div class="tbl-wrap">
-              <table class="tbl"><thead><tr id="azure-data-head"></tr></thead><tbody id="azure-data-body"></tbody></table>
+            <div class="tbl-wrap data-table-shell">
+              <table class="tbl loaded-data-table"><thead><tr id="azure-data-head"></tr></thead><tbody id="azure-data-body"></tbody></table>
             </div>
           </div>
         </div>
 
         <div class="card mt-16">
-          <div class="card-header"><h3><i class="ti ti-building"></i> Internal Uploaded File</h3></div>
-          <div class="card-body">
-            <div class="tbl-toolbar">
-              <input type="text" id="internal-data-search" class="search-input" placeholder="Search any visible column..." oninput="App.updateDataTableSearch('internal', this.value)">
-              <select id="internal-data-page-size" style="width:100px" onchange="App.changeDataTablePageSize('internal', this.value)">
-                <option value="25">Show 25</option><option value="50" selected>Show 50</option><option value="100">Show 100</option><option value="500">Show 500</option>
-              </select>
-              <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
-                <span id="internal-data-page-info" style="font-size:12px;color:#6b7280"></span>
-                <button class="btn btn-sm btn-ghost" id="internal-data-prev-btn" onclick="App.changeDataTablePage('internal', -1)"><i class="ti ti-chevron-left"></i></button>
-                <button class="btn btn-sm btn-ghost" id="internal-data-next-btn" onclick="App.changeDataTablePage('internal', 1)"><i class="ti ti-chevron-right"></i></button>
-              </div>
-            </div>
-            <div class="tbl-wrap">
-              <table class="tbl"><thead><tr id="internal-data-head"></tr></thead><tbody id="internal-data-body"></tbody></table>
+          <div class="card-header">
+            <h3><i class="ti ti-database"></i> Loaded Data</h3>
+            <div class="loaded-data-toggle" role="tablist" aria-label="Loaded data source">
+              <button class="toggle-pill active" id="loaded-data-toggle-internal" onclick="App.toggleLoadedDataSource('internal')">Internal File</button>
+              <button class="toggle-pill" id="loaded-data-toggle-vendor" onclick="App.toggleLoadedDataSource('vendor')">Vendor File</button>
             </div>
           </div>
-        </div>
-
-        <div class="card mt-16">
-          <div class="card-header"><h3><i class="ti ti-handshake"></i> Vendor Uploaded File</h3></div>
           <div class="card-body">
             <div class="tbl-toolbar">
-              <input type="text" id="vendor-data-search" class="search-input" placeholder="Search any visible column..." oninput="App.updateDataTableSearch('vendor', this.value)">
-              <select id="vendor-data-page-size" style="width:100px" onchange="App.changeDataTablePageSize('vendor', this.value)">
+              <input type="text" id="loaded-data-search" class="search-input" placeholder="Search any visible column..." oninput="App.updateDataTableSearch('loaded', this.value)">
+              <select id="loaded-data-page-size" style="width:100px" onchange="App.changeDataTablePageSize('loaded', this.value)">
                 <option value="25">Show 25</option><option value="50" selected>Show 50</option><option value="100">Show 100</option><option value="500">Show 500</option>
               </select>
               <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
-                <span id="vendor-data-page-info" style="font-size:12px;color:#6b7280"></span>
-                <span id="vendor-data-status" style="font-size:12px;color:#6b7280"></span>
-                <button class="btn btn-sm btn-ghost" id="vendor-data-prev-btn" onclick="App.changeDataTablePage('vendor', -1)"><i class="ti ti-chevron-left"></i></button>
-                <button class="btn btn-sm btn-ghost" id="vendor-data-next-btn" onclick="App.changeDataTablePage('vendor', 1)"><i class="ti ti-chevron-right"></i></button>
+                <span id="loaded-data-page-info" style="font-size:12px;color:#6b7280"></span>
+                <span id="loaded-data-status" style="font-size:12px;color:#6b7280"></span>
+                <button class="btn btn-sm btn-ghost" id="loaded-data-prev-btn" onclick="App.changeDataTablePage('loaded', -1)"><i class="ti ti-chevron-left"></i></button>
+                <button class="btn btn-sm btn-ghost" id="loaded-data-next-btn" onclick="App.changeDataTablePage('loaded', 1)"><i class="ti ti-chevron-right"></i></button>
               </div>
             </div>
-            <div class="tbl-wrap">
-              <table class="tbl"><thead><tr id="vendor-data-head"></tr></thead><tbody id="vendor-data-body"></tbody></table>
+            <div class="tbl-wrap data-table-shell" id="loaded-data-shell">
+              <table class="tbl loaded-data-table"><thead><tr id="loaded-data-head"></tr></thead><tbody id="loaded-data-body"></tbody></table>
             </div>
           </div>
         </div>

@@ -57,6 +57,15 @@ const State = {
     internal:{ page: 1, pageSize: 50, search: '', sortKey: '', sortDir: 'asc' },
     vendor:  { page: 1, pageSize: 50, search: '', sortKey: '', sortDir: 'asc' },
   },
+  loadedDataSource: 'internal',
+  loadedDataState: {
+    internal: { page: 1, pageSize: 50, search: '', sortKey: '', sortDir: 'asc' },
+    vendor:   { page: 1, pageSize: 50, search: '', sortKey: '', sortDir: 'asc' },
+  },
+  loadedDataScroll: {
+    internal: { top: 0, left: 0 },
+    vendor:   { top: 0, left: 0 },
+  },
   azure: {
     connected: false,
     accountName: null,
@@ -1096,14 +1105,33 @@ const App = {
   async _loadDataTables() {
     await Promise.all([
       this._loadLoadedDataTable('azure'),
-      this._loadLoadedDataTable('internal'),
-      this._loadLoadedDataTable('vendor')
+      this._loadLoadedDataTable('loaded')
     ]);
+  },
+
+  _getDataTableConfig(tableKey) {
+    if (tableKey === 'loaded') return State.loadedDataState[State.loadedDataSource] || State.loadedDataState.internal;
+    return State.dataTables[tableKey] || { page: 1, pageSize: 50, search: '', sortKey: '', sortDir: 'asc' };
+  },
+
+  _getDataTableSource(tableKey) {
+    return tableKey === 'loaded' ? State.loadedDataSource : tableKey;
+  },
+
+  toggleLoadedDataSource(source) {
+    if (State.loadedDataSource === source) return;
+    State.loadedDataSource = source;
+    const internalBtn = $('loaded-data-toggle-internal');
+    const vendorBtn = $('loaded-data-toggle-vendor');
+    if (internalBtn) internalBtn.classList.toggle('active', source === 'internal');
+    if (vendorBtn) vendorBtn.classList.toggle('active', source === 'vendor');
+    this._loadLoadedDataTable('loaded');
   },
 
   async _loadLoadedDataTable(tableKey) {
     try {
-      const cfg = State.dataTables[tableKey] || { page: 1, pageSize: 50, search: '', sortKey: '', sortDir: 'asc' };
+      const sourceKey = this._getDataTableSource(tableKey);
+      const cfg = this._getDataTableConfig(tableKey);
       const query = new URLSearchParams({
         page: String(cfg.page || 1),
         pageSize: String(cfg.pageSize || 50),
@@ -1111,7 +1139,7 @@ const App = {
       });
       if (cfg.sortKey) query.set('sort', cfg.sortKey);
       if (cfg.sortDir) query.set('dir', cfg.sortDir);
-      const data = await API.get(`/files/data/${tableKey}?${query.toString()}`);
+      const data = await API.get(`/files/data/${sourceKey}?${query.toString()}`);
       this._renderLoadedDataTable(tableKey, data);
     } catch (err) {
       this._renderLoadedDataTable(tableKey, { total: 0, page: 1, pageSize: 50, columns: [], rows: [], filename: '', error: err.message });
@@ -1125,7 +1153,15 @@ const App = {
     const prev = $(tableKey + '-data-prev-btn');
     const next = $(tableKey + '-data-next-btn');
     const status = $(tableKey + '-data-status');
+    const shell = $(tableKey + '-data-shell');
+    const sourceKey = this._getDataTableSource(tableKey);
     if (!head || !body) return;
+
+    const storedScroll = shell ? State.loadedDataScroll[sourceKey] || { top: 0, left: 0 } : { top: 0, left: 0 };
+    if (shell) {
+      shell.scrollTop = storedScroll.top || 0;
+      shell.scrollLeft = storedScroll.left || 0;
+    }
 
     const columns = Array.isArray(data.columns) && data.columns.length ? data.columns : [];
     const rows = Array.isArray(data.rows) ? data.rows : [];
@@ -1135,14 +1171,20 @@ const App = {
     const pages = Math.max(1, Math.ceil(total / pageSize));
 
     if (columns.length) {
-      head.innerHTML = '<th style="min-width:90px">#</th>' + columns.map(col => `
-        <th style="min-width:140px;white-space:nowrap">
-          <button class="btn btn-sm btn-ghost" style="padding:2px 6px;font-size:11px" onclick="App.sortLoadedDataTable('${tableKey}', '${_esc(col)}')">
-            ${_esc(col)} ${State.dataTables[tableKey]?.sortKey === col ? (State.dataTables[tableKey]?.sortDir === 'asc' ? '↑' : '↓') : ''}
-          </button>
-        </th>`).join('');
+      head.innerHTML = '<th style="min-width:90px;width:90px">#</th>' + columns.map(col => {
+        const safeCol = String(col).replace(/'/g, "\\'");
+        const width = Math.max(140, Math.min(260, Math.max(String(col).length * 8, 120)));
+        const cfg = this._getDataTableConfig(tableKey);
+        const sortMarker = cfg?.sortKey === col ? (cfg?.sortDir === 'asc' ? '↑' : '↓') : '';
+        return `
+          <th style="min-width:${width}px;max-width:${width + 40}px;white-space:normal">
+            <button class="btn btn-sm btn-ghost" style="padding:2px 6px;font-size:11px;white-space:normal;text-align:left" onclick="App.sortLoadedDataTable('${tableKey}', '${safeCol}')">
+              ${_esc(col)} ${sortMarker}
+            </button>
+          </th>`;
+      }).join('');
     } else {
-      head.innerHTML = '<th style="min-width:90px">#</th>';
+      head.innerHTML = '<th style="min-width:90px;width:90px">#</th>';
     }
 
     if (!rows.length) {
@@ -1151,8 +1193,11 @@ const App = {
     } else {
       body.innerHTML = rows.map((row, idx) => {
         const startIndex = (page - 1) * pageSize + idx + 1;
-        const cells = columns.map(col => `<td style="font-size:12px;color:#374151"><span class="cell-value">${_esc(String(row?.[col] ?? ''))}</span></td>`).join('');
-        return `<tr><td style="font-size:12px;color:#6b7280;font-weight:600">${startIndex}</td>${cells}</tr>`;
+        const cells = columns.map(col => {
+          const width = Math.max(140, Math.min(260, Math.max(String(col).length * 8, 120)));
+          return `<td style="font-size:12px;color:#374151;min-width:${width}px;max-width:${width + 40}px"><span class="cell-value">${_esc(String(row?.[col] ?? ''))}</span></td>`;
+        }).join('');
+        return `<tr><td style="font-size:12px;color:#6b7280;font-weight:600;min-width:90px;width:90px">${startIndex}</td>${cells}</tr>`;
       }).join('');
     }
 
@@ -1160,30 +1205,34 @@ const App = {
     if (prev) prev.disabled = page <= 1;
     if (next) next.disabled = page >= pages;
     if (status) status.textContent = data.filename ? `Source: ${_esc(data.filename)}` : '';
+
+    if (shell) {
+      State.loadedDataScroll[sourceKey] = { top: shell.scrollTop, left: shell.scrollLeft };
+    }
   },
 
   updateDataTableSearch(tableKey, value) {
-    const cfg = State.dataTables[tableKey]; if (!cfg) return;
+    const cfg = this._getDataTableConfig(tableKey); if (!cfg) return;
     cfg.search = value;
     cfg.page = 1;
     this._loadLoadedDataTable(tableKey);
   },
 
   changeDataTablePageSize(tableKey, value) {
-    const cfg = State.dataTables[tableKey]; if (!cfg) return;
+    const cfg = this._getDataTableConfig(tableKey); if (!cfg) return;
     cfg.pageSize = parseInt(value || '50');
     cfg.page = 1;
     this._loadLoadedDataTable(tableKey);
   },
 
   changeDataTablePage(tableKey, dir) {
-    const cfg = State.dataTables[tableKey]; if (!cfg) return;
+    const cfg = this._getDataTableConfig(tableKey); if (!cfg) return;
     cfg.page = Math.max(1, cfg.page + dir);
     this._loadLoadedDataTable(tableKey);
   },
 
   sortLoadedDataTable(tableKey, column) {
-    const cfg = State.dataTables[tableKey]; if (!cfg) return;
+    const cfg = this._getDataTableConfig(tableKey); if (!cfg) return;
     if (cfg.sortKey === column) cfg.sortDir = cfg.sortDir === 'asc' ? 'desc' : 'asc';
     else { cfg.sortKey = column; cfg.sortDir = 'asc'; }
     cfg.page = 1;
