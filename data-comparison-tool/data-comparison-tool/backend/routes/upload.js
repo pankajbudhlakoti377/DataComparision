@@ -226,6 +226,29 @@ router.get('/info/:side', (req, res) => {
   });
 });
 
+// Get paginated, searchable, sortable uploaded data for a side
+router.get('/data/:side', (req, res) => {
+  const sessionId = req.headers['x-session-id'] || 'default';
+  const { side } = req.params;
+  const { page = 1, pageSize = 50, search = '', sort = '', dir = 'asc' } = req.query;
+
+  let data = null;
+  if (side === 'azure') {
+    const internal = sessionStore.getFileData(sessionId, 'internal');
+    const vendor = sessionStore.getFileData(sessionId, 'vendor');
+    data = internal?.azureSource ? internal : vendor?.azureSource ? vendor : internal || vendor;
+  } else {
+    data = sessionStore.getFileData(sessionId, side);
+  }
+
+  if (!data || !Array.isArray(data.rows)) {
+    return res.json({ side, total: 0, page: 1, pageSize: 50, columns: [], rows: [], filename: '' });
+  }
+
+  const payload = _prepareDataTablePayload(data.rows, data.columns || [], { page, pageSize, search, sort, dir });
+  res.json({ side, filename: data.originalName || data.filename || '', ...payload });
+});
+
 // Get column distinct values for filter UI
 router.post('/column-values', async (req, res) => {
   const sessionId = req.headers['x-session-id'] || 'default';
@@ -245,5 +268,38 @@ router.delete('/session/:sessionId', (req, res) => {
   activityLogger.info('session', 'Session cleared');
   res.json({ success: true });
 });
+
+function _prepareDataTablePayload(rows, columns, opts = {}) {
+  const page = Math.max(1, parseInt(opts.page || 1));
+  const pageSize = Math.min(1000, Math.max(1, parseInt(opts.pageSize || 50)));
+  const search = String(opts.search || '').trim().toLowerCase();
+  const sort = String(opts.sort || '').trim();
+  const dir = String(opts.dir || 'asc').toLowerCase() === 'desc' ? 'desc' : 'asc';
+
+  let filtered = rows;
+  if (search) {
+    filtered = filtered.filter(row => Object.values(row || {}).some(val => String(val ?? '').toLowerCase().includes(search)));
+  }
+
+  if (sort && columns.includes(sort)) {
+    filtered = [...filtered].sort((a, b) => {
+      const av = a?.[sort] ?? '';
+      const bv = b?.[sort] ?? '';
+      const left = String(av).toLowerCase();
+      const right = String(bv).toLowerCase();
+      if (left < right) return dir === 'asc' ? -1 : 1;
+      if (left > right) return dir === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }
+
+  const total = filtered.length;
+  const start = (page - 1) * pageSize;
+  const paged = filtered.slice(start, start + pageSize);
+
+  return { total, page, pageSize, columns, rows: paged, sort, dir };
+}
+
+router._prepareDataTablePayload = _prepareDataTablePayload;
 
 module.exports = router;

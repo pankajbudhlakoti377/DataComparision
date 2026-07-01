@@ -25,7 +25,15 @@ router.post('/generate', async (req, res) => {
 
     if (format === 'excel') {
       filename = baseName + '.xlsx';
-      filePath = await gen.generateExcel(result, filename);
+      const sessionId = sid(req);
+      const internalData = store.getFileData(sessionId, 'internal');
+      const vendorData = store.getFileData(sessionId, 'vendor');
+      const azureData = [internalData, vendorData].filter(Boolean).filter(d => d.azureSource).map(d => ({
+        filename: d.filename || d.originalName || 'Azure File',
+        azureSource: d.azureSource,
+        rows: Array.isArray(d.rows) ? d.rows : []
+      }));
+      filePath = await gen.generateExcel(result, filename, { internalData, vendorData, azureData });
     } else if (format === 'pdf') {
       filename = baseName + '.pdf';
       filePath = await gen.generatePdf(result, filename);

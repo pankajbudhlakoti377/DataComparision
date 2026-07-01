@@ -13,11 +13,39 @@ class ReportGenerator {
   }
 
   // ─── Excel (multi-sheet) ────────────────────────────────────────────────
-  async generateExcel(result, filename) {
+  async generateExcel(result, filename, extraData = {}) {
     const wb = XLSX.utils.book_new();
     const { summary, config, matched = [], missingInVendor = [], extraInVendor = [], fieldDiffs = [], schemaComparison, analytics } = result;
+    const { internalData, vendorData, azureData } = extraData;
 
-    // ─ Sheet 1: Summary ─────────────────────────────────────────────────────
+    // ─ Sheet 1: Comparison Results (existing) ─────────────────────────────
+    const comparisonRows = [
+      ...matched.slice(0, 100000).map(m => ({
+        Status: m.hasDiffs ? 'Mismatch' : 'Matched',
+        Key: m.key,
+        DiffCount: m.diffs?.length || 0,
+        DiffColumns: m.diffs?.map(d => d.column).join(', ') || '',
+        ...this._prefix('Internal_', m.intRow),
+        ...this._prefix('Vendor_', m.vndRow)
+      })),
+      ...missingInVendor.slice(0, 100000).map(m => ({
+        Status: 'Missing in Vendor',
+        Key: m.key,
+        DiffCount: '',
+        DiffColumns: '',
+        ...this._prefix('Internal_', m.intRow || m._row)
+      })),
+      ...extraInVendor.slice(0, 100000).map(m => ({
+        Status: 'Extra in Vendor',
+        Key: m.key,
+        DiffCount: '',
+        DiffColumns: '',
+        ...this._prefix('Vendor_', m.vndRow || m._row)
+      }))
+    ];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(comparisonRows), 'Comparison Results');
+
+    // ─ Sheet 2: Summary ─────────────────────────────────────────────────────
     const top = (analytics?.topDiffColumns || summary.topDiffColumns || []).slice(0, 12);
     const rate = summary.matchRate || (summary.totalInternal > 0 ? ((matched.length || 0) / summary.totalInternal * 100).toFixed(2) : 0);
     const summaryAoa = [
@@ -64,36 +92,34 @@ class ReportGenerator {
     ws1['!cols'] = [{ wch: 35 }, { wch: 30 }];
     XLSX.utils.book_append_sheet(wb, ws1, 'Summary');
 
-    // ─ Sheet 2: Comparison Results (Matched + Missing + Extra) ──────────────
-    const comparisonRows = [
-      ...matched.slice(0, 100000).map(m => ({
-        Status: m.hasDiffs ? 'Mismatch' : 'Matched',
-        Key: m.key,
-        DiffCount: m.diffs?.length || 0,
-        DiffColumns: m.diffs?.map(d => d.column).join(', ') || '',
-        ...this._prefix('Internal_', m.intRow),
-        ...this._prefix('Vendor_', m.vndRow)
-      })),
-      ...missingInVendor.slice(0, 100000).map(m => ({
-        Status: 'Missing in Vendor',
-        Key: m.key,
-        DiffCount: '',
-        DiffColumns: '',
-        ...this._prefix('Internal_', m.intRow || m._row)
-      })),
-      ...extraInVendor.slice(0, 100000).map(m => ({
-        Status: 'Extra in Vendor',
-        Key: m.key,
-        DiffCount: '',
-        DiffColumns: '',
-        ...this._prefix('Vendor_', m.vndRow || m._row)
-      }))
-    ];
-    if (comparisonRows.length > 0) {
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(comparisonRows), 'Comparison Results');
-    }
+    // ─ Sheet 3: Internal File ──────────────────────────────────────────────
+    const internalRows = Array.isArray(internalData?.rows) && internalData.rows.length
+      ? internalData.rows.map(row => ({ ...row }))
+      : (Array.isArray(internalData?.columns) && internalData.columns.length
+        ? [internalData.columns.reduce((acc, col) => ({ ...acc, [col]: '' }), {})]
+        : [{ _note: 'No records available' }]);
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(internalRows), 'Internal File');
 
-    // ─ Sheet 3: Field Differences ──────────────────────────────────────────
+    // ─ Sheet 4: Vendor File ────────────────────────────────────────────────
+    const vendorRows = Array.isArray(vendorData?.rows) && vendorData.rows.length
+      ? vendorData.rows.map(row => ({ ...row }))
+      : (Array.isArray(vendorData?.columns) && vendorData.columns.length
+        ? [vendorData.columns.reduce((acc, col) => ({ ...acc, [col]: '' }), {})]
+        : [{ _note: 'No records available' }]);
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(vendorRows), 'Vendor File');
+
+    // ─ Sheet 5: Azure Loaded Data ─────────────────────────────────────────
+    const azureRows = Array.isArray(azureData) && azureData.length
+      ? azureData.flatMap(item => {
+          const rows = Array.isArray(item?.rows) ? item.rows : [];
+          return rows.length
+            ? rows.map(row => ({ ...row, _source: item?.filename || item?.azureSource || 'Azure' }))
+            : [{ _note: 'No Azure records available', _source: item?.filename || item?.azureSource || 'Azure' }];
+        })
+      : [{ _note: 'No Azure records available' }];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(azureRows), 'Azure Loaded Data');
+
+    // ─ Sheet 6: Field Differences ──────────────────────────────────────────
     if (fieldDiffs.length) {
       const rows = fieldDiffs.slice(0, 100000).map(d => ({
         RecordKey: d.key,
@@ -106,7 +132,7 @@ class ReportGenerator {
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Field Differences');
     }
 
-    // ─ Sheet 4: Column Mapping ────────────────────────────────────────────
+    // ─ Sheet 7: Column Mapping ────────────────────────────────────────────
     if (schemaComparison) {
       const mappingRows = [
         ['Internal Column', 'Vendor Column', 'Mapping Status'],

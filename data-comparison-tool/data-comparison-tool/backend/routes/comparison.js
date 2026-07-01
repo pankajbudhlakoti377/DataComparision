@@ -84,14 +84,7 @@ router.get('/results', (req, res) => {
       return res.json(_buildSummary(result));
 
     case 'detail': {
-      let rows = [
-        ...(result.matched       || []).map(r => ({ ...r.intRow, _status: r.hasDiffs ? 'mismatch' : 'matched',  _key: r.key, _diffCount: r.diffs?.length || 0, _diffCols: r.diffs?.map(d => d.column).join(', ') || '' })),
-        ...(result.missingInVendor || []).map(r => ({ ...r.intRow,  _status: 'missing', _key: r.key, _diffCount: '', _diffCols: '' })),
-        ...(result.extraInVendor   || []).map(r => ({ ...r.vndRow,  _status: 'extra',   _key: r.key, _diffCount: '', _diffCols: '' })),
-      ];
-      if (status) rows = rows.filter(r => r._status === status);
-      if (q)      rows = rows.filter(r => Object.values(r).some(v => String(v).toLowerCase().includes(q)));
-      return res.json({ total: rows.length, page: pg, pageSize: ps, columns: _cols(rows), rows: rows.slice(start, start + ps) });
+      return res.json(_buildDetailPagePayload(result, { page, pageSize, search, status }));
     }
 
     case 'matched': {
@@ -260,5 +253,78 @@ function _cols(rows) {
   if (!rows.length) return [];
   return Object.keys(rows[0]).filter(k => !k.startsWith('_')).slice(0, 25);
 }
+
+function _buildDetailPagePayload(result, { page = 1, pageSize = 100, search = '', status = '' } = {}) {
+  const pg = Math.max(1, parseInt(page));
+  const ps = Math.min(1000, Math.max(1, parseInt(pageSize)));
+  const start = (pg - 1) * ps;
+  const q = String(search || '').toLowerCase();
+
+  let rows = [
+    ...(result.matched || []).map(r => _buildDetailRow(result, r, 'matched')),
+    ...(result.missingInVendor || []).map(r => _buildDetailRow(result, r, 'missing')),
+    ...(result.extraInVendor || []).map(r => _buildDetailRow(result, r, 'extra')),
+  ];
+
+  if (status) rows = rows.filter(r => r._status === status);
+  if (q) rows = rows.filter(r => Object.values(r).some(v => String(v).toLowerCase().includes(q)));
+
+  return {
+    total: rows.length,
+    page: pg,
+    pageSize: ps,
+    columns: _cols(rows),
+    mappedColumns: _mappedColumns(result),
+    rows: rows.slice(start, start + ps)
+  };
+}
+
+function _buildDetailRow(result, item, type) {
+  const row = type === 'extra'
+    ? { ...item.vndRow }
+    : { ...item.intRow };
+
+  row._status = type === 'extra'
+    ? 'extra'
+    : type === 'missing'
+      ? 'missing'
+      : (item.hasDiffs ? 'mismatch' : 'matched');
+  row._key = item.key;
+  row._diffCount = item.diffs?.length || '';
+  row._diffCols = item.diffs?.map(d => d.column).join(', ') || '';
+
+  _addMappedValues(row, result, item, type);
+  return row;
+}
+
+function _addMappedValues(row, result, item, type) {
+  _mappedColumns(result).forEach(({ internal, vendor }) => {
+    const intVal = type === 'extra' || !item.intRow
+      ? ''
+      : (item.intRow[internal] ?? item.intRow[vendor] ?? '');
+    const vndVal = type === 'missing' || !item.vndRow
+      ? ''
+      : (item.vndRow[vendor] ?? item.vndRow[internal] ?? '');
+
+    row[`__int__${internal}`] = intVal;
+    row[`__vnd__${vendor}`] = vndVal;
+  });
+}
+
+function _mappedColumns(result) {
+  const pairs = (result.config?.columnMapping || result.schemaComparison?.mapped || [])
+    .map(m => ({ internal: m.internal || m.internalCol, vendor: m.vendor || m.vendorCol }))
+    .filter(m => m.internal && m.vendor);
+
+  if (pairs.length) return pairs;
+
+  const internalCols = result.schemaComparison?.internalColumns || [];
+  const vendorCols = result.schemaComparison?.vendorColumns || [];
+  return internalCols
+    .filter(c => vendorCols.includes(c))
+    .map(c => ({ internal: c, vendor: c }));
+}
+
+router._buildDetailPagePayload = _buildDetailPagePayload;
 
 module.exports = router;

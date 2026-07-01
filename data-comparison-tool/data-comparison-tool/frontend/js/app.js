@@ -52,6 +52,11 @@ const State = {
     sku:    { page: 1, pageSize: 50  },
     diff:   { page: 1, pageSize: 50  },
   },
+  dataTables: {
+    azure:   { page: 1, pageSize: 50, search: '', sortKey: '', sortDir: 'asc' },
+    internal:{ page: 1, pageSize: 50, search: '', sortKey: '', sortDir: 'asc' },
+    vendor:  { page: 1, pageSize: 50, search: '', sortKey: '', sortDir: 'asc' },
+  },
   azure: {
     connected: false,
     accountName: null,
@@ -1017,6 +1022,7 @@ const App = {
     this._renderCharts(s);
     this._renderRecommendations(s);
     this.loadDetailPage(1);
+    this._loadDataTables();
   },
 
   _renderSummaryTab(s, schema) {
@@ -1087,6 +1093,103 @@ const App = {
     el.innerHTML = recs.map(r=>`<div style="display:flex;gap:10px;padding:12px;background:${BG[r.t]};border-radius:8px;margin-bottom:8px"><i class="ti ${IC[r.t]}" style="color:${FG[r.t]};flex-shrink:0;margin-top:1px"></i><span style="color:${FG[r.t]};font-size:13px">${r.m}</span></div>`).join('');
   },
 
+  async _loadDataTables() {
+    await Promise.all([
+      this._loadLoadedDataTable('azure'),
+      this._loadLoadedDataTable('internal'),
+      this._loadLoadedDataTable('vendor')
+    ]);
+  },
+
+  async _loadLoadedDataTable(tableKey) {
+    try {
+      const cfg = State.dataTables[tableKey] || { page: 1, pageSize: 50, search: '', sortKey: '', sortDir: 'asc' };
+      const query = new URLSearchParams({
+        page: String(cfg.page || 1),
+        pageSize: String(cfg.pageSize || 50),
+        search: cfg.search || '',
+      });
+      if (cfg.sortKey) query.set('sort', cfg.sortKey);
+      if (cfg.sortDir) query.set('dir', cfg.sortDir);
+      const data = await API.get(`/files/data/${tableKey}?${query.toString()}`);
+      this._renderLoadedDataTable(tableKey, data);
+    } catch (err) {
+      this._renderLoadedDataTable(tableKey, { total: 0, page: 1, pageSize: 50, columns: [], rows: [], filename: '', error: err.message });
+    }
+  },
+
+  _renderLoadedDataTable(tableKey, data) {
+    const head = $(tableKey + '-data-head');
+    const body = $(tableKey + '-data-body');
+    const info = $(tableKey + '-data-page-info');
+    const prev = $(tableKey + '-data-prev-btn');
+    const next = $(tableKey + '-data-next-btn');
+    const status = $(tableKey + '-data-status');
+    if (!head || !body) return;
+
+    const columns = Array.isArray(data.columns) && data.columns.length ? data.columns : [];
+    const rows = Array.isArray(data.rows) ? data.rows : [];
+    const total = Number(data.total || 0);
+    const page = Number(data.page || 1);
+    const pageSize = Number(data.pageSize || 50);
+    const pages = Math.max(1, Math.ceil(total / pageSize));
+
+    if (columns.length) {
+      head.innerHTML = '<th style="min-width:90px">#</th>' + columns.map(col => `
+        <th style="min-width:140px;white-space:nowrap">
+          <button class="btn btn-sm btn-ghost" style="padding:2px 6px;font-size:11px" onclick="App.sortLoadedDataTable('${tableKey}', '${_esc(col)}')">
+            ${_esc(col)} ${State.dataTables[tableKey]?.sortKey === col ? (State.dataTables[tableKey]?.sortDir === 'asc' ? '↑' : '↓') : ''}
+          </button>
+        </th>`).join('');
+    } else {
+      head.innerHTML = '<th style="min-width:90px">#</th>';
+    }
+
+    if (!rows.length) {
+      const colspan = columns.length ? columns.length + 1 : 1;
+      body.innerHTML = `<tr><td colspan="${colspan}" style="text-align:center;padding:24px;color:#9ca3af">${data.error ? _esc(data.error) : 'No uploaded records available yet.'}</td></tr>`;
+    } else {
+      body.innerHTML = rows.map((row, idx) => {
+        const startIndex = (page - 1) * pageSize + idx + 1;
+        const cells = columns.map(col => `<td style="font-size:12px;color:#374151"><span class="cell-value">${_esc(String(row?.[col] ?? ''))}</span></td>`).join('');
+        return `<tr><td style="font-size:12px;color:#6b7280;font-weight:600">${startIndex}</td>${cells}</tr>`;
+      }).join('');
+    }
+
+    if (info) info.textContent = total ? `Page ${page}/${pages} · ${total.toLocaleString()} records` : 'No records';
+    if (prev) prev.disabled = page <= 1;
+    if (next) next.disabled = page >= pages;
+    if (status) status.textContent = data.filename ? `Source: ${_esc(data.filename)}` : '';
+  },
+
+  updateDataTableSearch(tableKey, value) {
+    const cfg = State.dataTables[tableKey]; if (!cfg) return;
+    cfg.search = value;
+    cfg.page = 1;
+    this._loadLoadedDataTable(tableKey);
+  },
+
+  changeDataTablePageSize(tableKey, value) {
+    const cfg = State.dataTables[tableKey]; if (!cfg) return;
+    cfg.pageSize = parseInt(value || '50');
+    cfg.page = 1;
+    this._loadLoadedDataTable(tableKey);
+  },
+
+  changeDataTablePage(tableKey, dir) {
+    const cfg = State.dataTables[tableKey]; if (!cfg) return;
+    cfg.page = Math.max(1, cfg.page + dir);
+    this._loadLoadedDataTable(tableKey);
+  },
+
+  sortLoadedDataTable(tableKey, column) {
+    const cfg = State.dataTables[tableKey]; if (!cfg) return;
+    if (cfg.sortKey === column) cfg.sortDir = cfg.sortDir === 'asc' ? 'desc' : 'asc';
+    else { cfg.sortKey = column; cfg.sortDir = 'asc'; }
+    cfg.page = 1;
+    this._loadLoadedDataTable(tableKey);
+  },
+
   /* ── DETAIL TABLE ───────────────────────────────────────────────────────── */
   async loadDetailPage(page) {
     if (page != null) State.pagination.detail.page = page;
@@ -1098,58 +1201,35 @@ const App = {
     try {
       const data = await API.get(`/comparison/results?section=detail&page=${p.page}&pageSize=${ps}${q?'&search='+encodeURIComponent(q):''}${st?'&status='+st:''}`);
       const rows = data.rows || [], total = data.total || 0, cols = data.columns || [];
+      const mappedColumns = Array.isArray(data.mappedColumns) && data.mappedColumns.length
+        ? data.mappedColumns
+        : (cols.length ? cols.map(c => ({ internal: c, vendor: c })) : []);
       const tbody = $('detail-tbody');
       if (tbody) {
         const thead = tbody.closest('table')?.querySelector('thead tr');
-        if (thead && cols.length) {
-          // Group columns into internal and vendor columns for side-by-side display
-          const internalCols = [];
-          const vendorCols = [];
-          cols.forEach(c => {
-            if (!c.startsWith('_')) {
-              internalCols.push(c);
-              vendorCols.push(c);
-            }
-          });
-          // Build header with side-by-side internal/vendor columns
+        if (thead && mappedColumns.length) {
           let headerHtml = '<th style="min-width:80px;background:#f1f5f9">Status</th><th style="min-width:100px;background:#f1f5f9">Key</th>';
-          if (internalCols.length > 0 || vendorCols.length > 0) {
-            // Show first 5 columns from each side
-            const displayCols = 5;
-            headerHtml += '<th colspan="' + (displayCols * 2 + 1) + '" style="text-align:center;background:#f1f5f9;padding:8px;font-size:11px;border-bottom:2px solid var(--border)">Comparison Data</th></tr><tr><th style="min-width:80px;background:#f1f5f9">Status</th><th style="min-width:100px;background:#f1f5f9">Key</th>';
-            for (let i = 0; i < Math.max(internalCols.length, vendorCols.length); i++) {
-              if (i < displayCols) {
-                const intCol = internalCols[i] || '';
-                const vndCol = vendorCols[i] || '';
-                if (intCol) headerHtml += `<th class="tbl-internal-header" style="color:#1e40af">Internal_${_esc(intCol)}</th>`;
-                if (vndCol) headerHtml += `<th class="tbl-vendor-header" style="color:#4c1d95">Vendor_${_esc(vndCol)}</th>`;
-              }
-            }
-            if (internalCols.length > displayCols || vendorCols.length > displayCols) {
-              headerHtml += '<th style="background:#f1f5f9">More</th>';
-            }
-          }
+          headerHtml += '<th colspan="' + (mappedColumns.length * 2) + '" style="text-align:center;background:#f1f5f9;padding:8px;font-size:11px;border-bottom:2px solid var(--border)">Comparison Data</th></tr><tr><th style="min-width:80px;background:#f1f5f9">Status</th><th style="min-width:100px;background:#f1f5f9">Key</th>';
+          mappedColumns.forEach(({ internal, vendor }) => {
+            headerHtml += `<th class="tbl-internal-header" style="color:#1e40af">Internal_${_esc(String(internal || ''))}</th>`;
+            headerHtml += `<th class="tbl-vendor-header" style="color:#4c1d95">Vendor_${_esc(String(vendor || ''))}</th>`;
+          });
           thead.innerHTML = headerHtml;
         }
         if (rows.length === 0) {
-          const colSpan = 2 + (Math.max(5, (cols.length || 0)) * 2) + 1;
+          const colSpan = 2 + (mappedColumns.length * 2);
           tbody.innerHTML = `<tr><td colspan="${colSpan}" style="text-align:center;padding:32px;color:#6b7280;font-size:13px"><i class="ti ti-inbox" style="font-size:24px;display:block;margin-bottom:8px;opacity:.4"></i>No records match the current filter</td></tr>`;
         } else {
-          const displayCols = 5;
           tbody.innerHTML = rows.map(r => {
             const st2 = r._status || 'matched';
             const statusBadge = {matched:'<span class="badge badge-match">✓ Matched</span>',mismatch:'<span class="badge badge-warn">⚠ Mismatch</span>',missing:'<span class="badge badge-diff">✗ Missing</span>',extra:'<span class="badge badge-extra">+ Extra</span>'}[st2]||'<span class="badge badge-gray">Unknown</span>';
-            let rowHtml = `<tr class="row-${st2}"><td style="font-weight:600">${statusBadge}</td><td><code style="font-size:10px;background:#f3f4f6;padding:2px 6px;border-radius:4px">${_esc(String(r._key||''))}</code></td>`;
-            // Show first 5 columns for each side
-            for (let i = 0; i < displayCols; i++) {
-              const col = cols[i] || '';
-              const val = r[col] ?? '';
-              rowHtml += `<td style="font-size:12px;color:#1e40af">${_esc(String(val))}</td>`;
-              rowHtml += `<td style="font-size:12px;color:#4c1d95">${_esc(String(val))}</td>`;
-            }
-            if (cols.length > displayCols) {
-              rowHtml += '<td style="color:#9ca3af;font-size:10px">+' + (cols.length - displayCols) + ' more</td>';
-            }
+            let rowHtml = `<tr class="row-${st2}"><td style="font-weight:600">${statusBadge}</td><td><code style="font-size:10px;background:#f3f4f6;padding:2px 6px;border-radius:4px;white-space:pre-wrap">${_esc(String(r._key||''))}</code></td>`;
+            mappedColumns.forEach(({ internal, vendor }) => {
+              const intVal = r[`__int__${internal}`] ?? r[internal] ?? '';
+              const vndVal = r[`__vnd__${vendor}`] ?? r[vendor] ?? '';
+              rowHtml += `<td style="font-size:12px;color:#1e40af"><span class="cell-value">${_esc(String(intVal))}</span></td>`;
+              rowHtml += `<td style="font-size:12px;color:#4c1d95"><span class="cell-value">${_esc(String(vndVal))}</span></td>`;
+            });
             rowHtml += '</tr>';
             return rowHtml;
           }).join('');
@@ -1204,7 +1284,7 @@ const App = {
             const st2 = r._status || 'matched';
             const badge={matched:'<span class="badge badge-match">Matched</span>',mismatch:'<span class="badge badge-warn">Mismatch</span>',missing:'<span class="badge badge-diff">Missing</span>',extra:'<span class="badge badge-extra">Extra</span>'}[st2]||'';
             const key = r._key || (Object.values(r).find(v => v && String(v).length < 80 && !String(v).startsWith('_'))) || '—';
-            return `<tr class="row-${st2}"><td>${badge}</td><td><code style="font-size:12px">${_esc(String(key))}</code></td><td>${st2==='missing'?'Internal Only':st2==='extra'?'Vendor Only':'Both'}</td><td>${r._diffCount||''}</td></tr>`;
+            return `<tr class="row-${st2}"><td>${badge}</td><td><code style="font-size:12px;white-space:pre-wrap">${_esc(String(key))}</code></td><td><span class="cell-value">${st2==='missing'?'Internal Only':st2==='extra'?'Vendor Only':'Both'}</span></td><td><span class="cell-value">${r._diffCount||''}</span></td></tr>`;
           }).join('');
         }
       }
@@ -1223,9 +1303,10 @@ const App = {
     try {
       const data = await API.get('/comparison/results?section=duplicates&page=1&pageSize=50');
       const tbody = $('dup-tbody'); if (!tbody) return;
-      const rows = data.rows || [];
+      const q = String($('dup-search')?.value || '').trim().toLowerCase();
+      const rows = (data.rows || []).filter(d => !q || Object.values(d).some(v => String(v ?? '').toLowerCase().includes(q)));
       tbody.innerHTML = rows.length
-        ? rows.map(d=>`<tr><td><span class="badge badge-${d.source==='Internal'?'blue':'purple'}">${_esc(d.source)}</span></td><td><code style="font-size:12px">${_esc(d.key)}</code></td><td><strong>${d.count}</strong></td></tr>`).join('')
+        ? rows.map(d=>`<tr><td><span class="badge badge-${d.source==='Internal'?'blue':'purple'}">${_esc(d.source)}</span></td><td><code style="font-size:12px;white-space:pre-wrap">${_esc(d.key)}</code></td><td><strong>${d.count}</strong></td></tr>`).join('')
         : '<tr><td colspan="3" style="text-align:center;color:#9ca3af;padding:16px">No duplicates detected</td></tr>';
     } catch {}
   },
@@ -1238,10 +1319,12 @@ const App = {
     if (!State.comparisonResult) return;
     const p   = State.pagination.diff;
     const col = $('diff-col-filter')?.value || '';
+    const q   = String($('diff-search')?.value || '').trim().toLowerCase();
     try {
       const data = await API.get(`/comparison/results?section=diffs&page=${p.page}&pageSize=50${col?'&col='+encodeURIComponent(col):''}`);
+      const rows = (data.rows || []).filter(r => !q || Object.values(r || {}).some(v => String(v ?? '').toLowerCase().includes(q)));
       const tbody = $('diff-tbody');
-      if (tbody) tbody.innerHTML = (data.rows||[]).map(r=>`<tr><td><code style="font-size:12px">${_esc(String(r.key??''))}</code></td><td><code style="font-size:11px;color:#6366f1">${_esc(String(r.column??''))}</code></td><td class="diff-cell-old">${_esc(String(r.internalValue??''))}</td><td class="diff-cell-new">${_esc(String(r.vendorValue??''))}</td></tr>`).join('');
+      if (tbody) tbody.innerHTML = rows.map(r=>`<tr><td><code style="font-size:12px;white-space:pre-wrap">${_esc(String(r.key??''))}</code></td><td><code style="font-size:11px;color:#6366f1;white-space:pre-wrap">${_esc(String(r.column??''))}</code></td><td class="diff-cell-old"><span class="cell-value">${_esc(String(r.internalValue??''))}</span></td><td class="diff-cell-new"><span class="cell-value">${_esc(String(r.vendorValue??''))}</span></td></tr>`).join('');
 
       const sel = $('diff-col-filter');
       if (sel && data.availableColumns?.length && sel.options.length <= 1) {
